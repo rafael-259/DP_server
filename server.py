@@ -25,7 +25,7 @@ ROUTE = [
 ]
 
 # drone should stay within 5m of the route at all times
-BUFFER_METERS = 20
+BUFFER_METERS = 10
 
 # calculates straight-line distance in metres between two GPS coordinates using flat geometry approximation (Pythagorean theorem on a plane)
 # Assumes coordinates are in degrees and converts to meters using a simple scale factor

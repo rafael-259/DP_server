@@ -90,9 +90,7 @@ DASHBOARD = """
           border-radius: 8px; margin-bottom: 15px; max-width: 400px;
           font-weight: bold; font-size: 1.1em; }
     #map { height: 400px; max-width: 800px; border-radius: 8px;
-           box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-           transform: rotate(90deg);
-           transform-origin: center center; }
+           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
   </style>
 
   <!-- Leaflet CSS -->
@@ -118,67 +116,45 @@ DASHBOARD = """
   </div>
 
   <!-- Map -->
-  <div style="overflow: hidden; max-width: 800px;">
-    <div id="map"></div>
-  </div>
+  <div id="map"></div>
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script>
+    // Route waypoints passed from Flask into JavaScript
     var route = {{ route | tojson }};
     var bufferMeters = {{ buffer }};
     var droneLat = {{ data.lat }};
     var droneLon = {{ data.lon }};
     var onRoute = {{ 'true' if data.on_route else 'false' }};
 
+    // Initialise map centred on the first waypoint
     var map = L.map('map').setView([route[0][0], route[0][1]], 18);
 
+    // Load OpenStreetMap tiles (free, no API key needed)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    function buildCorridor(route, bufferMeters) {
-      var leftSide = [];
-      var rightSide = [];
-  
-      // account for longitude scaling at this latitude
-      var avgLat = route.reduce((sum, p) => sum + p[0], 0) / route.length;
-      var latBuf = bufferMeters / 111320;                          // degrees latitude
-      var lonBuf = bufferMeters / (111320 * Math.cos(avgLat * Math.PI / 180));  // degrees longitude
+    // Draw blue buffer circles around each waypoint
+    route.forEach(function(point) {
+      L.circle([point[0], point[1]], {
+        radius: bufferMeters,
+        color: 'blue',
+        fillColor: '#3388ff',
+        fillOpacity: 0.15,
+        weight: 1
+      }).addTo(map);
+    });
 
-      route.forEach(function(point, i) {
-        var next = route[Math.min(i + 1, route.length - 1)];
-        var prev = route[Math.max(i - 1, 0)];
-        var angle = Math.atan2(next[0] - prev[0], next[1] - prev[1]);
-        var perp = angle + Math.PI / 2;
-
-        leftSide.push([
-          point[0] + latBuf * Math.cos(perp),
-          point[1] + lonBuf * Math.sin(perp)   // use lonBuf for longitude
-        ]);
-        rightSide.push([
-          point[0] - latBuf * Math.cos(perp),
-          point[1] - lonBuf * Math.sin(perp)   // use lonBuf for longitude
-        ]);
-      });
-
-      return leftSide.concat(rightSide.reverse());
-    }
-
-    var corridor = buildCorridor(route, bufferMeters);
-    L.polygon(corridor, {
-      color: 'blue',
-      fillColor: '#3388ff',
-      fillOpacity: 0.2,
-      weight: 2
-    }).addTo(map);
-
+    // Draw the route line connecting all waypoints
     var routeLine = L.polyline(route, {
       color: 'blue',
       weight: 2,
       opacity: 0.6
     }).addTo(map);
 
+    // Draw the drone as a red circle marker
     var droneMarker = L.circleMarker([droneLat, droneLon], {
       radius: 10,
       color: onRoute ? 'red' : 'orange',
@@ -186,10 +162,12 @@ DASHBOARD = """
       fillOpacity: 0.9
     }).addTo(map).bindPopup('Drone: ' + droneLat.toFixed(6) + ', ' + droneLon.toFixed(6));
 
+    // Auto-refresh data every second without reloading the whole page
     setInterval(function() {
       fetch('/data')
         .then(response => response.json())
         .then(data => {
+          // Update marker position
           droneMarker.setLatLng([data.lat, data.lon]);
           droneMarker.setStyle({
             color: data.on_route ? 'red' : 'orange',

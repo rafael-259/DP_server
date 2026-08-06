@@ -103,9 +103,9 @@ DASHBOARD = """
 
   <!-- Status banner -->
   {% if data.on_route %}
-  <div class="ok">✅ Drone is on route</div>
+  <div class="ok"> Drone is on route</div>
   {% else %}
-  <div class="warning">⚠️ WARNING: Drone has exited route corridor!</div>
+  <div class="warning"> WARNING: Drone has exited route corridor!</div>
   {% endif %}
 
   <!-- Data card -->
@@ -140,7 +140,11 @@ DASHBOARD = """
     function buildCorridor(route, bufferMeters) {
       var leftSide = [];
       var rightSide = [];
-      var bufDeg = bufferMeters / 111320;
+  
+      // account for longitude scaling at this latitude
+      var avgLat = route.reduce((sum, p) => sum + p[0], 0) / route.length;
+      var latBuf = bufferMeters / 111320;                          // degrees latitude
+      var lonBuf = bufferMeters / (111320 * Math.cos(avgLat * Math.PI / 180));  // degrees longitude
 
       route.forEach(function(point, i) {
         var next = route[Math.min(i + 1, route.length - 1)];
@@ -149,12 +153,12 @@ DASHBOARD = """
         var perp = angle + Math.PI / 2;
 
         leftSide.push([
-          point[0] + bufDeg * Math.cos(perp),
-          point[1] + bufDeg * Math.sin(perp)
+          point[0] + latBuf * Math.cos(perp),
+          point[1] + lonBuf * Math.sin(perp)   // use lonBuf for longitude
         ]);
         rightSide.push([
-          point[0] - bufDeg * Math.cos(perp),
-          point[1] - bufDeg * Math.sin(perp)
+          point[0] - latBuf * Math.cos(perp),
+          point[1] - lonBuf * Math.sin(perp)   // use lonBuf for longitude
         ]);
       });
 

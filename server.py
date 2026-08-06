@@ -97,6 +97,7 @@ DASHBOARD = """
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
 </head>
 <body>
   <h1>Drone Status</h1>
@@ -140,22 +141,25 @@ DASHBOARD = """
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Draw blue buffer circles around each waypoint
-    route.forEach(function(point) {
-      L.circle([point[0], point[1]], {
-        radius: bufferMeters,
-        color: 'blue',
-        fillColor: '#3388ff',
-        fillOpacity: 0.15,
-        weight: 1
-      }).addTo(map);
+    // Convert Leaflet route [lat, lon] to Turf.js format [lon, lat]
+    var turfCoordinates = route.map(function(point) { 
+        return [point[1], point[0]]; 
     });
 
-    // Draw the route line connecting all waypoints
-    var routeLine = L.polyline(route, {
-      color: 'blue',
-      weight: 2,
-      opacity: 0.6
+    // Create a Turf LineString from the coordinates
+    var routeLineString = turf.lineString(turfCoordinates);
+
+    // Generate a mathematical buffer polygon around the line
+    var bufferedPolygon = turf.buffer(routeLineString, bufferMeters, { units: 'meters' });
+
+    // Draw the newly combined polygon "tube" onto the Leaflet map
+    L.geoJSON(bufferedPolygon, {
+      style: {
+        color: 'blue',          // The single outer border color
+        weight: 1,              // The thickness of the outer border
+        fillColor: '#3388ff',
+        fillOpacity: 0.15
+      }
     }).addTo(map);
 
     // Draw the drone as a red circle marker

@@ -162,6 +162,13 @@ DASHBOARD = """
       }
     }).addTo(map);
 
+    // Draw the center line connecting all the GPS waypoints
+    L.polyline(route, {
+      color: 'green',
+      weight: 2,             // Thickness of the line
+      opacity: 0.8
+    }).addTo(map);
+
     // Draw the drone as a red circle marker
     var droneMarker = L.circleMarker([droneLat, droneLon], {
       radius: 10,

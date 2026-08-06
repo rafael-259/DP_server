@@ -90,7 +90,9 @@ DASHBOARD = """
           border-radius: 8px; margin-bottom: 15px; max-width: 400px;
           font-weight: bold; font-size: 1.1em; }
     #map { height: 400px; max-width: 800px; border-radius: 8px;
-           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+           box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+           transform: rotate(90deg);
+           transform-origin: center center; }
   </style>
 
   <!-- Leaflet CSS -->
@@ -116,7 +118,9 @@ DASHBOARD = """
   </div>
 
   <!-- Map -->
-  <div id="map"></div>
+  <div style="overflow: hidden; max-width: 800px;">
+    <div id="map"></div>
+  </div>
 
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>

@@ -164,7 +164,7 @@ DASHBOARD = """
 
     // Draw the center line connecting all the GPS waypoints
     L.polyline(route, {
-      color: 'green',
+      color: 'blue',
       weight: 2,             // Thickness of the line
       opacity: 0.8
     }).addTo(map);

@@ -76,18 +76,37 @@ DASHBOARD = """
 <html>
 <head>
   <title>drone go weeeeeeeeeeeee</title>
-  <meta http-equiv="refresh" content="1"> <!-- auto-refresh every second -->
   <style>
-    body { font-family: Arial, sans-serif; padding: 40px; background: #f4f4f4; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
     h1   { color: #333; }
     .card { background: white; padding: 20px; border-radius: 8px; 
-            max-width: 400px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+            max-width: 400px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 15px; }
     .field { margin: 10px 0; font-size: 1.1em; }
     .label { font-weight: bold; color: #555; }
+    .warning { background: red; color: white; padding: 15px; 
+               border-radius: 8px; margin-bottom: 15px; max-width: 400px;
+               font-weight: bold; font-size: 1.1em; }
+    .ok { background: green; color: white; padding: 15px;
+          border-radius: 8px; margin-bottom: 15px; max-width: 400px;
+          font-weight: bold; font-size: 1.1em; }
+    #map { height: 400px; max-width: 800px; border-radius: 8px;
+           box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
   </style>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 </head>
 <body>
   <h1>Drone Status</h1>
+
+  <!-- Status banner -->
+  {% if data.on_route %}
+  <div class="ok"> Drone is on route</div>
+  {% else %}
+  <div class="warning" WARNING: Drone has exited route corridor!</div>
+  {% endif %}
+
+  <!-- Data card -->
   <div class="card">
     <div class="field"><span class="label">Drone ID:</span> {{ data.id }}</div>
     <div class="field"><span class="label">Latitude:</span> {{ data.lat }}</div>
@@ -96,12 +115,69 @@ DASHBOARD = """
     <div class="field"><span class="label">RSSI:</span> {{ data.rssi }} dBm</div>
   </div>
 
-  {% if data.on_route %}
-  <div class="ok"> Drone is on course</div>
-  {% else %}
-  <div class="warning">WARNING: Drone has exited route corridor!</div>
-  {% endif %}
-  
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>
+    // Route waypoints passed from Flask into JavaScript
+    var route = {{ route | tojson }};
+    var bufferMeters = {{ buffer }};
+    var droneLat = {{ data.lat }};
+    var droneLon = {{ data.lon }};
+    var onRoute = {{ 'true' if data.on_route else 'false' }};
+
+    // Initialise map centred on the first waypoint
+    var map = L.map('map').setView([route[0][0], route[0][1]], 18);
+
+    // Load OpenStreetMap tiles (free, no API key needed)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Draw blue buffer circles around each waypoint
+    route.forEach(function(point) {
+      L.circle([point[0], point[1]], {
+        radius: bufferMeters,
+        color: 'blue',
+        fillColor: '#3388ff',
+        fillOpacity: 0.15,
+        weight: 1
+      }).addTo(map);
+    });
+
+    // Draw the route line connecting all waypoints
+    var routeLine = L.polyline(route, {
+      color: 'blue',
+      weight: 2,
+      opacity: 0.6
+    }).addTo(map);
+
+    // Draw the drone as a red circle marker
+    var droneMarker = L.circleMarker([droneLat, droneLon], {
+      radius: 10,
+      color: onRoute ? 'red' : 'orange',
+      fillColor: onRoute ? 'red' : 'orange',
+      fillOpacity: 0.9
+    }).addTo(map).bindPopup('Drone: ' + droneLat.toFixed(6) + ', ' + droneLon.toFixed(6));
+
+    // Auto-refresh data every second without reloading the whole page
+    setInterval(function() {
+      fetch('/data')
+        .then(response => response.json())
+        .then(data => {
+          // Update marker position
+          droneMarker.setLatLng([data.lat, data.lon]);
+          droneMarker.setStyle({
+            color: data.on_route ? 'red' : 'orange',
+            fillColor: data.on_route ? 'red' : 'orange'
+          });
+          droneMarker.setPopupContent('Drone: ' + data.lat.toFixed(6) + ', ' + data.lon.toFixed(6));
+        });
+    }, 1000);
+
+  </script>
 </body>
 </html>
 """
@@ -112,7 +188,7 @@ DASHBOARD = """
 # this renders the dashboard and passes the current latest_data, which fills in the page
 @app.route("/")
 def index():
-    return render_template_string(DASHBOARD, data=latest_data)
+    return render_template_string(DASHBOARD, data=latest_data, route=ROUTE, buffer=BUFFER_METERS)
 
 # returns raw JSON file (for debugging purposes)
 @app.route("/data")

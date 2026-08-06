@@ -103,9 +103,9 @@ DASHBOARD = """
 
   <!-- Status banner -->
   {% if data.on_route %}
-  <div class="ok"> Drone is on route</div>
+  <div class="ok">✅ Drone is on route</div>
   {% else %}
-  <div class="warning" WARNING: Drone has exited route corridor!</div>
+  <div class="warning">⚠️ WARNING: Drone has exited route corridor!</div>
   {% endif %}
 
   <!-- Data card -->
@@ -125,40 +125,56 @@ DASHBOARD = """
   <!-- Leaflet JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script>
-    // Route waypoints passed from Flask into JavaScript
     var route = {{ route | tojson }};
     var bufferMeters = {{ buffer }};
     var droneLat = {{ data.lat }};
     var droneLon = {{ data.lon }};
     var onRoute = {{ 'true' if data.on_route else 'false' }};
 
-    // Initialise map centred on the first waypoint
     var map = L.map('map').setView([route[0][0], route[0][1]], 18);
 
-    // Load OpenStreetMap tiles (free, no API key needed)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Draw blue buffer circles around each waypoint
-    route.forEach(function(point) {
-      L.circle([point[0], point[1]], {
-        radius: bufferMeters,
-        color: 'blue',
-        fillColor: '#3388ff',
-        fillOpacity: 0.15,
-        weight: 1
-      }).addTo(map);
-    });
+    function buildCorridor(route, bufferMeters) {
+      var leftSide = [];
+      var rightSide = [];
+      var bufDeg = bufferMeters / 111320;
 
-    // Draw the route line connecting all waypoints
+      route.forEach(function(point, i) {
+        var next = route[Math.min(i + 1, route.length - 1)];
+        var prev = route[Math.max(i - 1, 0)];
+        var angle = Math.atan2(next[0] - prev[0], next[1] - prev[1]);
+        var perp = angle + Math.PI / 2;
+
+        leftSide.push([
+          point[0] + bufDeg * Math.cos(perp),
+          point[1] + bufDeg * Math.sin(perp)
+        ]);
+        rightSide.push([
+          point[0] - bufDeg * Math.cos(perp),
+          point[1] - bufDeg * Math.sin(perp)
+        ]);
+      });
+
+      return leftSide.concat(rightSide.reverse());
+    }
+
+    var corridor = buildCorridor(route, bufferMeters);
+    L.polygon(corridor, {
+      color: 'blue',
+      fillColor: '#3388ff',
+      fillOpacity: 0.2,
+      weight: 2
+    }).addTo(map);
+
     var routeLine = L.polyline(route, {
       color: 'blue',
       weight: 2,
       opacity: 0.6
     }).addTo(map);
 
-    // Draw the drone as a red circle marker
     var droneMarker = L.circleMarker([droneLat, droneLon], {
       radius: 10,
       color: onRoute ? 'red' : 'orange',
@@ -166,12 +182,10 @@ DASHBOARD = """
       fillOpacity: 0.9
     }).addTo(map).bindPopup('Drone: ' + droneLat.toFixed(6) + ', ' + droneLon.toFixed(6));
 
-    // Auto-refresh data every second without reloading the whole page
     setInterval(function() {
       fetch('/data')
         .then(response => response.json())
         .then(data => {
-          // Update marker position
           droneMarker.setLatLng([data.lat, data.lon]);
           droneMarker.setStyle({
             color: data.on_route ? 'red' : 'orange',
@@ -212,7 +226,8 @@ def receive_data():
     data = request.get_json()
     if data:
         latest_data.update(data)
-        print("Received:", data)
+        latest_data["on_route"] = is_on_route(data["lat"], data["lon"])
+        print("Received:", data, "| On route:", latest_data["on_route"])
     return "OK", 200
 
 ########################################################### ENTRY POINT ###########################################################
